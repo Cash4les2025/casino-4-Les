@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino 4 Les - Crash Game</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      margin: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .header p {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+
+    .game-board {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 15px;
+      padding: 30px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .multiplier-display {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      margin-bottom: 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .multiplier-display::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+      background-size: 20px 20px;
+      animation: animate 20s linear infinite;
+    }
+
+    @keyframes animate {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(20px, 20px); }
+    }
+
+    .multiplier-value {
+      font-size: 4em;
+      font-weight: bold;
+      margin: 20px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .game-status {
+      font-size: 1.2em;
+      position: relative;
+      z-index: 1;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      margin-top: 10px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      font-size: 0.9em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.9;
+    }
+
+    input {
+      padding: 12px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 1em;
+      transition: all 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 15px;
+      font-size: 1.1em;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.3s;
+    }
+
+    .btn-bet {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      grid-column: 1;
+    }
+
+    .btn-bet:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(245, 87, 108, 0.4);
+    }
+
+    .btn-cashout {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      color: white;
+      grid-column: 2;
+    }
+
+    .btn-cashout:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(79, 172, 254, 0.4);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 1.8em;
+      font-weight: bold;
+    }
+
+    .message {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+      animation: slideIn 0.3s ease-in;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.success {
+      background: rgba(76, 175, 80, 0.3);
+      border-left: 4px solid #4CAF50;
+      display: block;
+    }
+
+    .message.error {
+      background: rgba(244, 67, 54, 0.3);
+      border-left: 4px solid #f44336;
+      display: block;
+    }
+
+    .message.info {
+      background: rgba(33, 150, 243, 0.3);
+      border-left: 4px solid #2196F3;
+      display: block;
+    }
+
+    .connection-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+
+    .connection-status.connected {
+      background: rgba(76, 175, 80, 0.8);
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+
+    .connection-status.disconnected {
+      background: rgba(244, 67, 54, 0.8);
+      box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    }
+
+    @media (max-width: 600px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .multiplier-value {
+        font-size: 3em;
+      }
+
+      .header h1 {
+        font-size: 2em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="connection-status disconnected" id="connectionStatus">
+    ● Disconnected
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <h1>🎮 Casino 4 Les</h1>
+      <p>Multiplayer Crash Game</p>
+    </div>
+
+    <div class="game-board">
+      <div id="message" class="message"></div>
+
+      <div class="multiplier-display">
+        <div class="game-status" id="gameStatus">Waiting for game...</div>
+        <div class="multiplier-value" id="multiplier">1.00x</div>
+        <div class="status-badge" id="statusBadge">Loading...</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Game ID</div>
+          <div class="stat-value" id="gameId">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Crash Point</div>
+          <div class="stat-value" id="crashPoint">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Your Profit</div>
+          <div class="stat-value" id="profit">$0.00</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="betAmount">Bet Amount ($)</label>
+          <input type="number" id="betAmount" placeholder="Enter bet amount" min="1" max="10000" value="100">
+        </div>
+        <div class="control-group">
+          <label for="status">Status</label>
+          <input type="text" id="status" readonly value="Ready">
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn-bet" id="betBtn" onclick="placeBet()">Place Bet</button>
+        <button class="btn-cashout" id="cashoutBtn" onclick="cashout()" disabled>Cash Out</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let currentMultiplier = 1;
+    let gameRunning = false;
+    let playerBet = 0;
+    let hasbet = false;
+    let gameId = 0;
+
+    // Connection Events
+    socket.on("connect", () => {
+      updateMessage("Connected to server!", "info");
+      updateConnectionStatus(true);
+      console.log("Connected:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      updateConnectionStatus(false);
+      updateMessage("Disconnected from server", "error");
+    });
+
+    socket.on("currentGame", (data) => {
+      gameRunning = data.running;
+      currentMultiplier = data.multiplier;
+      gameId = data.gameId;
+      updateDisplay();
+    });
+
+    socket.on("gameStart", (data) => {
+      gameRunning = true;
+      gameId = data.gameId;
+      currentMultiplier = 1;
+      playerBet = 0;
+      hasBet = false;
+      document.getElementById("betBtn").disabled = false;
+      document.getElementById("cashoutBtn").disabled = true;
+      document.getElementById("profit").textContent = "$0.00";
+      document.getElementById("crashPoint").textContent = data.crashPoint + "x";
+      updateMessage(`Game #${data.gameId} started!`, "info");
+      updateDisplay();
+    });
+
+    socket.on("multiplier", (data) => {
+      currentMultiplier = data.multiplier;
+      updateDisplay();
+    });
+
+    socket.on("crash", (data) => {
+      gameRunning = false;
+      updateMessage(`Game crashed at ${data.multiplier}x! 💥`, "error");
+      document.getElementById("betBtn").disabled = true;
+      document.getElementById("cashoutBtn").disabled = true;
+      updateDisplay();
+    });
+
+    socket.on("cashedOut", (data) => {
+      if (data.success) {
+        updateMessage(
+          `Cashed out at ${data.multiplier}x! Won: $${data.winnings} 🎉`,
+          "success"
+        );
+        document.getElementById("profit").textContent = `$${data.profit.toFixed(2)}`;
+        document.getElementById("cashoutBtn").disabled = true;
+        hasBet = false;
+      } else {
+        updateMessage(data.error, "error");
+      }
+    });
+
+    socket.on("playerCashedOut", (data) => {
+      console.log(`Player cashed out at ${data.multiplier}x`);
+    });
+
+    // Functions
+    function placeBet() {
+      const betAmount = parseFloat(document.getElementById("betAmount").value);
+
+      if (!betAmount || betAmount <= 0) {
+        updateMessage("Enter a valid bet amount", "error");
+        return;
+      }
+
+      if (!gameRunning) {
+        updateMessage("Game is not running", "error");
+        return;
+      }
+
+      if (currentMultiplier > 1.05) {
+        updateMessage("Bets only allowed at game start", "error");
+        return;
+      }
+
+      socket.emit("placeBet", { amount: betAmount }, (response) => {
+        if (response.success) {
+          playerBet = betAmount;
+          hasBet = true;
+          document.getElementById("betBtn").disabled = true;
+          document.getElementById("cashoutBtn").disabled = false;
+          document.getElementById("status").value = "Betting";
+          updateMessage(`Bet placed: $${betAmount}`, "success");
+        } else {
+          updateMessage(response.error, "error");
+        }
+      });
+    }
+
+    function cashout() {
+      if (!hasBet) {
+        updateMessage("No active bet", "error");
+        return;
+      }
+
+      socket.emit("cashout", (response) => {
+        if (response.success) {
+          document.getElementById("status").value = "Cashed Out";
+          hasBet = false;
+        }
+      });
+    }
+
+    function updateDisplay() {
+      document.getElementById("multiplier").textContent =
+        currentMultiplier.toFixed(2) + "x";
+      document.getElementById("gameId").textContent = gameId;
+      document.getElementById("gameStatus").textContent = gameRunning
+        ? "Game Running..."
+        : "Waiting...";
+      document.getElementById("statusBadge").textContent = gameRunning
+        ? "🟢 LIVE"
+        : "🟡 WAITING";
+
+      if (hasBet) {
+        const currentProfit = (playerBet * currentMultiplier - playerBet).toFixed(2);
+        document.getElementById("profit").textContent = `$${currentProfit}`;
+      }
+    }
+
+    function updateMessage(msg, type) {
+      const messageEl = document.getElementById("message");
+      messageEl.textContent = msg;
+      messageEl.className = `message ${type}`;
+      setTimeout(() => {
+        messageEl.className = "message";
+      }, 4000);
+    }
+
+    function updateConnectionStatus(connected) {
+      const status = document.getElementById("connectionStatus");
+      if (connected) {
+        status.className = "connection-status connected";
+        status.textContent = "● Connected";
+      } else {
+        status.className = "connection-status disconnected";
+        status.textContent = "● Disconnected";
+      }
+    }
+
+    // Initialize
+    updateDisplay();
+  </script>
+</body>
+</html>
